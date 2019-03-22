@@ -662,3 +662,9 @@ ggplot() +
 
 
 ```
+### sst
+```{r}
+load("e:/Data Manipulation/xtractomatic/sst.RData")
+
+```
+
