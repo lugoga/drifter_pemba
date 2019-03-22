@@ -1,0 +1,24 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1553176452561.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "4105711411",
+    "id" : "FCFB9663",
+    "lastKnownWriteTime" : 1553230679,
+    "last_content_update" : 1553230679525,
+    "path" : "E:/Data Manipulation/drifter_pemba/pemba_up_down.Rmd",
+    "project_path" : "pemba_up_down.Rmd",
+    "properties" : {
+        "chunk_output_type" : "inline",
+        "cursorPosition" : "662,0",
+        "last_setup_crc32" : "9D793F6Abb338d19",
+        "scrollLine" : "654"
+    },
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_markdown"
+}
