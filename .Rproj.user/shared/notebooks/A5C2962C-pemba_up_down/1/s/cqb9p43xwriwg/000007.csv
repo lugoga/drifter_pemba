@@ -1,7 +1,0 @@
-"0","coordinates = drifter.gridded %>% 
-  st_centroid() %>% 
-  st_coordinates() %>% 
-  as_tibble() %>% rename(x = X, y = Y)
-"
-"2","st_centroid assumes attributes are constant over geometries of x"
-"2","st_centroid does not give correct centroids for longitude/latitude data"

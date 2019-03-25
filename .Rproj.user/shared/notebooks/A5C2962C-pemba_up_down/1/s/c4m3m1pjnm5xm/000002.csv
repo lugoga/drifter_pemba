@@ -1,6 +1,0 @@
-"0","load(""e:/Data Manipulation/xtractomatic/quikscat_wio_2006.RData"")"
-"0","wind.x = wind_x[[""data""]]"
-"0","wind.y = wind_y[[""data""]]"
-"0","date = wind_x$time %>% as.Date()"
-"0","lon = wind_x$longitude"
-"0","lat = wind_x$latitude"

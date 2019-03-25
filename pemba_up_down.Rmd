@@ -8,7 +8,7 @@ editor_options:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
 One major task for scientists in his their daily routine is to prepare compelling graphics for technical document, reports or manuscripts for publication. Graphics in form of figures carry the weight of the arguments. They need to be clear, attractive and convincing. according to [@], the difference between good and bad figures always lead into the difference between a highly influential or an obscure paper; a grant/contract won or lost; and a job interview gone well or poorly.
@@ -113,6 +113,8 @@ load("e:/Data Manipulation/drifter_pemba/pemba.RData")
 
 drifter.kimbiji%>%select(-c(drogue, season)) %>% sample_n(12) %>% DT::datatable(caption = "A sample of drifter dataset", rownames = FALSE )
 ```
+
+
 
 The drifter observations were randomly distributed within the area as shown in figure \@ref(fig:fig1) and requires binning---a process of making equal size grid in the area. 
 
@@ -291,6 +293,9 @@ ggplot() +
 ```
 
 
+
+
+
 ```{r se-massless, fig.cap="Massless current flow during the SE season"}
 ggplot()+
 metR::geom_streamline(data = uv.se, 
@@ -311,6 +316,8 @@ metR::geom_streamline(data = uv.se,
         axis.text = element_text(size = 12, colour = 1))+  
   labs(x = "", y = "")
 ```
+
+
 
 
 ```{r drifter-temperature}
@@ -451,47 +458,42 @@ metR::geom_streamline(data = uv.ne,
 
 
 
+```{r}
 
+eacc.a = st_read("eacc_bound.shp")
+
+drifter.eacc = drifter.kimbiji.sf %>% st_intersection(eacc.a)
+st_geometry(drifter.eacc) = NULL
+
+drifter.monthly = drifter.eacc %>%
+filter( year >=1994) %>%
+group_by(month, year) %>%
+summarise(u = median(u, na.rm = T),
+v = median(v, na.rm = T),
+vel = sqrt(u^2+v^2))
+```
 
 ```{r}
-## select grids for NE season only
-drf.ne.sst = drifter.current.gridded %>%filter(season == "NE") %>% na.omit()
-
-## interpolate the U component
-sst.ne = interpBarnes(x = drf.ne.sst$x, y = drf.ne.sst$y, z = drf.ne.sst$sst)
-dimension = data.frame(lon = sst.ne$xg, sst.ne$zg) %>% dim()
-
-## make sst into a long format data table from interpolated matrix
-sst.ne.tb = data.frame(lon = sst.ne$xg, sst.ne$zg) %>% 
-  gather(key = "lata", value = "sst", 2:dimension[2]) %>% 
-  mutate(lat = rep(sst.ne$yg, each = dimension[1])) %>% 
-  select(lon,lat, sst) %>% as.tibble()
-```
-
-
-
-```{r ne-sst,}
-ggplot() +
-  metR::geom_contour_fill(data = sst.ne.tb %>% filter(sst > 26.5), 
-                          aes(x = lon, y = lat, z = sst), na.fill = TRUE, bins = 70) + 
-  metR::geom_vector(data = uv.ne, aes(x = lon, y = lat, dx = u, dy = v), 
-                    arrow.angle = 30, arrow.type = "open", arrow.length = .5, 
-                    pivot = 0,preserve.dir = TRUE, direction = "ccw")+
-  geom_sf(data = tz.ke,fill = "lightgrey", col = "black")+
-  coord_sf(ylim = c(-6.0,-4.2), xlim = c(38.7, 40.5))+
-  scale_fill_gradientn(name = "Temperature",colours = oceColors9A(120), 
-                       # limits = c(0,23),
-                       # breaks =seq(4,20,4),
-                       na.value = "white")+
-  labs(x = "", y = "")+
-  theme_bw()+
-  theme(legend.position = "right",
-        legend.key.height = unit(1.4, "cm"), 
-        legend.background = element_blank(),
+ggplot()+
+  metR::geom_contour_fill(data = drifter.monthly,
+  aes(x = year, y = month, z = vel), na.fill = TRUE, bins = 70)+
+  metR::geom_contour2(data = drifter.monthly,
+  aes(x = year, y = month, z = vel), na.fill = TRUE)+
+  metR::geom_text_contour(data = drifter.monthly,
+  aes(x = year, y = month, z = vel), na.fill = TRUE, check_overlap = TRUE, skip = 2)+
+  scale_fill_gradientn(colours = oce.colorsVelocity(120), breaks = seq(0.2,1.6,.3))+
+  scale_y_reverse(breaks = 1:12, 
+                  label = month(seq(dmy(010119),  dmy(311219), by = "month"), 
+                                label = TRUE, abbr = TRUE)) +
+  scale_x_continuous(breaks = seq(1997,2018,4))+
+  # theme_void() +
+  theme(legend.key.height = unit(1.4, "cm"),
         axis.text = element_text(size = 12, colour = 1))+
-    scale_mag(name = "Speed", max = 1.8, labels = "1.8 m/s")
+  labs(x = NULL, y = NULL)
+  
 
 ```
+
 
 ```{r sst-an}
 
@@ -509,35 +511,143 @@ sst.an.tb = data.frame(lon = sst.an$xg, sst.an$zg) %>%
   gather(key = "lata", value = "sst", 2:dimension[2]) %>% 
   mutate(lat = rep(sst.an$yg, each = dimension[1])) %>% 
   select(lon,lat, sst) %>% as.tibble()
-```
 
+uv.an = uv.ne %>%
+  bind_cols(uv.se %>% select(u.se = u, v.se = v)) %>% 
+  mutate(u.an = u.se-u, v.an = v.se-v)
 
-
-```{r sst-anomaly}
 
 ggplot() +
   metR::geom_contour_fill(data = sst.an.tb, 
                           aes(x = lon, y = lat, z = sst), na.fill = TRUE, bins = 70) + 
-  metR::geom_vector(data = uv.ne, aes(x = lon, y = lat, dx = u, dy = v), 
-                    arrow.angle = 30, arrow.type = "open", arrow.length = .5, 
+  metR::geom_vector(data = uv.an, aes(x = lon, y = lat, dx = u.an, dy = v.an), 
+                    arrow.angle = 30, arrow.type = "open", arrow.length = .75, 
                     pivot = 0,preserve.dir = TRUE, direction = "ccw")+
   geom_sf(data = tz.ke,fill = "lightgrey", col = "black")+
   coord_sf(ylim = c(-6.0,-4.2), xlim = c(38.7, 40.5))+
-  scale_fill_gradientn(name = "Temperature",colours = oceColors9A(120), 
-                       # limits = c(0,23),
-                       # breaks =seq(4,20,4),
-                       na.value = "white")+
+  # scale_fill_gradientn(name = "Temperature",colours = oceColors9A(120), 
+  #                      # limits = c(0,23),
+  #                      # breaks =seq(4,20,4),
+  #                      na.value = "white")+
+  metR::scale_fill_divergent(midpoint = 0)+
   labs(x = "", y = "")+
   theme_bw()+
   theme(legend.position = "right",
         legend.key.height = unit(1.4, "cm"), 
         legend.background = element_blank(),
         axis.text = element_text(size = 12, colour = 1))+
-    scale_mag(name = "Speed", max = 1.8, labels = "1.8 m/s")
+  scale_mag(name = "Speed", max = 1.2, labels = "1.8 m/s")+
+  scale_x_continuous(breaks = c(38.8,40.5))+
+  scale_y_continuous(breaks = c(-6.3, -4.8))
 
 ```
 
 
+```{r}
+
+vector.se =ggplot() +
+  metR::geom_contour_fill(data = uv.se %>% filter(lon >= 39.2 & lon < 40.3 & lat > -6.4 & lat < -4.2), 
+                          aes(x = lon, y = lat, z = vel), na.fill = TRUE, bins = 70) + 
+  metR::geom_vector(data = uv.se%>%filter(lon >= 39.2 & lon < 40.3 & lat > -6.4 & lat < -4.2),  
+                    aes(x = lon, y = lat, dx = u, dy = v), 
+                    arrow.angle = 20, arrow.type = "open", arrow.length = .5, 
+                    pivot = 0,preserve.dir = TRUE, direction = "ccw")+
+  geom_sf(data = tz.ke,fill = "lightgrey", col = "black")+
+  coord_sf(ylim = c(-6.0,-4.5), xlim = c(39.25, 40.2))+
+  scale_fill_gradientn(name = expression(ms^{-1}),
+                       colours = oceColorsVelocity(120), 
+                       limits = c(0,1.8),
+                       # breaks =seq(0.2,1.6,.3), 
+                       na.value = "white")+
+  labs(x = "", y = "")+
+ theme_bw()+
+  theme(legend.position = "right",
+        legend.key.height = unit(1.1, "cm"), 
+        legend.background = element_blank(),
+        axis.text.y = element_blank(),
+        axis.text = element_text(size = 12, colour = 1))+ 
+  scale_mag(name = "", max = 1.8, labels = "1.8 m/s")+
+  scale_x_continuous(breaks = c(39.4,40.1))+
+  scale_y_continuous(breaks = c(-5.8, -4.6))
+
+
+vector.ne = ggplot() +
+  metR::geom_contour_fill(data = uv.ne%>%filter(lon >= 39.2 & lon < 40.3 & lat > -6.4 & lat < -4.2), 
+                          aes(x = lon, y = lat, z = vel), na.fill = TRUE, bins = 70) + 
+  metR::geom_vector(data = uv.ne%>%filter(lon >= 39.2 & lon < 40.3 & lat > -6.4 & lat < -4.2),  
+                    aes(x = lon, y = lat, dx = u, dy = v), 
+                    arrow.angle = 20, arrow.type = "open", arrow.length = .5, 
+                    pivot = 0,preserve.dir = TRUE, direction = "ccw")+
+  geom_sf(data = tz.ke,fill = "lightgrey", col = "black")+
+  coord_sf(ylim = c(-6.0,-4.5), xlim = c(39.25, 40.2))+
+  scale_fill_gradientn(name = expression(speed~(ms^{-1})),
+                       colours = oceColorsVelocity(120), 
+                       limits = c(0,1.8),
+                       # breaks =seq(0.2,1.6,.3), 
+                       na.value = "white")+
+  labs(x = "", y = "")+
+  theme_bw()+
+  theme(legend.position = "none",
+        legend.key.height = unit(1.4, "cm"), 
+        legend.background = element_blank(),
+        axis.text = element_text(size = 12, colour = 1))+ 
+  scale_mag(max = 1.8, name = expression(ms^{-1}))+
+  scale_x_continuous(breaks = c(39.4,40.1))+
+  scale_y_continuous(breaks = c(-5.8, -4.6))
+
+egg::ggarrange(vector.ne, vector.se, ncol = 2)
+```
+
+
+
+
+```{r}
+
+streamline.ne = ggplot()+
+metR::geom_streamline(data = uv.ne %>%filter(lon >= 39.2 & lon < 40.3 & lat > -6.4 & lat < -4.2), 
+                        aes(x = lon, y = lat, dx = u, dy = v, 
+                            color = sqrt(..dx..^2 + ..dy..^2), alpha = ..step..),
+                      #arrow = NULL, 
+                      #lineend = "round"
+                      L = .75, res = 2, n = 40)+
+  geom_sf(data = tz.ke,fill = "lightgrey", col = "black")+
+  coord_sf(ylim = c(-6.0,-4.5), xlim = c(39.25, 40.2))+
+  scale_color_viridis_c(guide = "none")+
+  scale_size(range = c(0, 1.5), guide = "none") +
+  scale_alpha(guide = "none") +
+  theme_bw()+
+  theme(legend.position = "right",
+        legend.key.height = unit(1.4, "cm"), 
+        legend.background = element_blank(),
+        axis.text = element_text(size = 12, colour = 1))+
+  scale_x_continuous(breaks = c(39.4,40.1))+
+  scale_y_continuous(breaks = c(-5.8, -4.6))+  
+  labs(x = "", y = "")
+
+streamline.se = ggplot()+
+metR::geom_streamline(data = uv.se%>%filter(lon >= 39.2 & lon < 40.3 & lat > -6.4 & lat < -4.2), 
+                        aes(x = lon, y = lat, dx = u, dy = v, 
+                            color = sqrt(..dx..^2 + ..dy..^2), alpha = ..step..),
+                      #arrow = NULL, 
+                      #lineend = "round"
+                      L = .75, res = 2, n = 40)+
+  geom_sf(data = tz.ke,fill = "lightgrey", col = "black")+
+  coord_sf(ylim = c(-6.0,-4.5), xlim = c(39.25, 40.2))+
+  scale_color_viridis_c(guide = "none")+
+  scale_size(range = c(0, 1.5), guide = "none") +
+  scale_alpha(guide = "none") +
+  theme_bw()+
+  theme(legend.position = "right",
+        legend.key.height = unit(1.4, "cm"), 
+        legend.background = element_blank(),
+        axis.text = element_text(size = 12, colour = 1),
+        axis.text.y = element_blank())+
+  scale_x_continuous(breaks = c(39.4,40.1))+
+  scale_y_continuous(breaks = c(-5.8, -4.6))+  
+  labs(x = "", y = "")
+
+egg::ggarrange(streamline.ne, streamline.se, ncol = 2)
+```
 
 ### Wind
 ```{r}
@@ -588,8 +698,7 @@ wind.data = wind.x.tb %>%
          season = month,
          season = replace(season,season %in% c(11,12,1,2,3, 4), "NE"),
          # season = replace(season,season %in% c(4,10), "IN"),
-         season = replace(season,season %in% c(5,6,7,8,9,10 ), "SE"),
-         month = month(time, label = TRUE, abbr = TRUE))%>%
+         season = replace(season,season %in% c(5,6,7,8,9,10 ), "SE"))%>%
   select(lon, lat, time,month, season, wind_x, wind_y)
 
 ```
@@ -612,18 +721,168 @@ wind.data.monthly = wind.data %>%
 ```
 
 ```{r}
+wind.se = ggplot()+
+  metR::geom_vector(data = wind.data.monthly%>%filter(month == 8), 
+                    aes(x = lon, y = lat, dx = wind.x, dy = wind.y), 
+                    arrow.angle = 20, arrow.type = "open", arrow.length = .6, 
+                    pivot = 0,preserve.dir = TRUE, direction = "ccw")+
+  geom_sf(data = tz.ke,fill = "lightgrey", col = "black")+
+  coord_sf(ylim = c(-6.5,-4.5), xlim = c(38.5, 41))+
+  labs(x = "", y = "")+
+  theme_bw()+
+  theme(legend.position = "none",
+        legend.key.height = unit(.25, "cm"),
+        legend.background = element_blank(),
+        axis.text = element_text(size = 12, colour = 1), 
+        axis.text.y = element_blank(),
+        legend.key = element_blank())+ 
+  scale_mag(name = expression(speed~(ms^{-1})), max = 15)+
+  scale_x_continuous(breaks = c(38.8,40.5))+
+  scale_y_continuous(breaks = c(-6.3, -4.8))
+
+
+
+wind.ne = ggplot() +
+  metR::geom_vector(data = wind.data.monthly%>%filter(month == 1), 
+                    aes(x = lon, y = lat, dx = wind.x, dy = wind.y), 
+                    arrow.angle = 20, arrow.type = "open", arrow.length = .6, 
+                    pivot = 0,preserve.dir = TRUE, direction = "ccw")+
+  geom_sf(data = tz.ke,fill = "lightgrey", col = "black")+
+  coord_sf(ylim = c(-6.5,-4.5), xlim = c(38.5, 41))+
+  labs(x = "", y = "")+
+  theme_bw()+
+  theme(legend.position = c(.15,.85),
+        legend.key.height = unit(.25, "cm"),
+        legend.background = element_blank(),
+        axis.text = element_text(size = 12, colour = 1),
+        legend.key = element_blank())+ 
+  scale_mag(name = expression(ms^{-1}), max = 15)+
+  scale_x_continuous(breaks = c(38.8,40.5))+
+  scale_y_continuous(breaks = c(-6.3, -4.8))
+
+egg::ggarrange(wind.ne, wind.se, ncol = 2)
+```
+### modis sst
+```{r}
+load("e:/Data Manipulation/xtractomatic/sst.RData")
+
+```
+
+```{r}
+lon = sst.mod$longitude
+lat = sst.mod$latitude
+time = sst.mod$time %>% as.Date()
+sst = sst.mod$data
+
+dimension = data.frame(lon, sst[,,1]) %>% dim()
+sst.kimbiji = list()
+
+for (j in 1:length(time)){
+  
+sst.kimbiji[[j]] = data.frame(lon, sst[,,j]) %>% 
+  gather(key = "lata", value = "sst", 2:dimension[2]) %>% 
+  mutate(lat = rep(lat, each = dimension[1]), date = time[j], 
+         month = month(date), season = month, 
+         season = replace(season,season %in% c(11,12,1,2,3, 4), "NE"),
+         # season = replace(season,season %in% c(4,10), "IN"),
+         season = replace(season,season %in% c(5,6,7,8,9,10 ), "SE")) %>% 
+  filter(lon >=38 & lon <= 42 & lat >=-8 & lat <= -3) %>%
+  as.tibble()
+}
+
+## subset for the Area of interest
+sst.kimbiji = sst.kimbiji %>% bind_rows() 
+
+sst.kimbiji.monthly = sst.kimbiji %>% group_by(lon,lat, month) %>% summarise(sst = mean(sst, na.rm = TRUE))
+sst.kimbiji.season = sst.kimbiji %>% group_by(lon,lat, season) %>% summarise(sst = mean(sst, na.rm = TRUE))
+```
+
+```{r}
+
+sst.modis.se = ggplot() +
+  metR::geom_contour_fill(data = sst.kimbiji.season %>% filter(season == "SE" & sst <= 28), 
+                          aes(x = lon, y = lat, z = sst), na.fill = TRUE, bins = 70) + 
+  metR::geom_contour2(data = sst.kimbiji.season %>% filter(season == "SE" & sst <= 28), 
+                          aes(x = lon, y = lat, z = sst), na.fill = TRUE) + 
+  metR::geom_text_contour(data = sst.kimbiji.season %>% filter(season == "SE" & sst <= 28), 
+                          aes(x = lon, y = lat, z = sst), na.fill = TRUE, 
+                          parse = TRUE, check_overlap = TRUE, size = 3) + 
+  # metR::geom_vector(data = uv.se, aes(x = lon, y = lat, dx = u, dy = v), 
+  #                   arrow.angle = 20, arrow.type = "open", arrow.length = .5, 
+  #                   pivot = 0,preserve.dir = TRUE, direction = "ccw")+
+  geom_sf(data = tz.ke,fill = "lightgrey", col = "black")+
+  coord_sf(ylim = c(-6.5,-4.5), xlim = c(38.5, 41))+
+  scale_fill_gradientn(name = "Current",
+                       colours = oceColors9A(120), 
+                       # limits = c(0,1.6),
+                       # breaks =seq(0.2,1.6,.3),
+                       na.value = "white")+
+  labs(x = "", y = "")+
+  theme_bw()+
+  theme(legend.position = "none",
+        legend.key.height = unit(1.4, "cm"), 
+        legend.background = element_blank(),
+        axis.text = element_text(size = 12, colour = 1),
+        axis.text.y = element_blank())+ 
+  # scale_mag(max = 1.6, name = expression(speed~(ms^{-1})))+
+  scale_x_continuous(breaks = c(38.8,40.5))+
+  scale_y_continuous(breaks = c(-6.3, -4.8))
+
+
+
+sst.modis.ne = ggplot() +
+  metR::geom_contour_fill(data = sst.kimbiji.season %>% filter(season == "NE" & sst >28.1 & sst <= 30), 
+                          aes(x = lon, y = lat, z = sst), na.fill = TRUE, bins = 70) + 
+  metR::geom_contour2(data = sst.kimbiji.season %>% filter(season == "NE" & sst >28.1 & sst <= 30), 
+                          aes(x = lon, y = lat, z = sst), na.fill = TRUE) + 
+  metR::geom_text_contour(data = sst.kimbiji.season %>% filter(season == "NE" & sst >28.1 & sst <= 30), 
+                          aes(x = lon, y = lat, z = sst), na.fill = TRUE, 
+                          parse = TRUE, check_overlap = TRUE, size = 3) + 
+  # metR::geom_vector(data = uv.se, aes(x = lon, y = lat, dx = u, dy = v), 
+  #                   arrow.angle = 20, arrow.type = "open", arrow.length = .5, 
+  #                   pivot = 0,preserve.dir = TRUE, direction = "ccw")+
+  geom_sf(data = tz.ke,fill = "lightgrey", col = "black")+
+  coord_sf(ylim = c(-6.5,-4.5), xlim = c(38.5, 41))+
+  scale_fill_gradientn(name = "Current",
+                       colours = oceColors9A(120), 
+                       # limits = c(0,1.6),
+                       breaks =seq(28.2,30,0.4),
+                       na.value = "white")+
+  labs(x = "", y = "")+
+  theme_bw()+
+  theme(legend.position = "none",
+        legend.key.height = unit(1.4, "cm"), 
+        legend.background = element_blank(),
+        axis.text = element_text(size = 12, colour = 1))+ 
+  # scale_mag(max = 1.6, name = expression(speed~(ms^{-1})))+
+  scale_x_continuous(breaks = c(38.8,40.5))+
+  scale_y_continuous(breaks = c(-6.3, -4.8))
+
+egg::ggarrange(sst.modis.ne, sst.modis.se, ncol = 2)
+```
+
+
+```{r eval=FALSE}
+require(gganimate)
+
+sst.kimbiji.monthly$month = sst.kimbiji.monthly$month %>% as.integer
+wind.data.monthly$month = wind.data.monthly$month %>% as.integer
+
+
 ggplot() +
-  metR::geom_contour_fill(data = wind.data.monthly%>%filter(month == "Aug"), 
-                          aes(x = lon, y = lat, z = speed), na.fill = TRUE, bins = 70) + 
-  metR::geom_vector(data = wind.data.monthly%>%filter(month == "Aug"), 
+  geom_raster(data = sst.kimbiji.monthly, 
+                          aes(x = lon, y = lat, fill = sst), interpolate = TRUE) +
+  # metR::geom_contour_fill(data = sst.kimbiji.monthly, 
+  #                         aes(x = lon, y = lat, z = sst), na.fill = TRUE) + 
+  metR::geom_vector(data = wind.data.monthly, 
                     aes(x = lon, y = lat, dx = wind.x/10, dy = wind.y/10), 
                     arrow.angle = 30, arrow.type = "open", arrow.length = .75, 
                     pivot = 0,preserve.dir = TRUE, direction = "ccw")+
   geom_sf(data = tz.ke,fill = "lightgrey", col = "black")+
   coord_sf(ylim = c(-6.5,-4.5), xlim = c(38.5, 41))+
-  scale_fill_gradientn(name = "Current",
-                       colours = oceColorsVelocity(120), 
-                       # limits = c(0,1.6), 
+  scale_fill_gradientn(name = "Temperature",
+                       colours = oceColorsJet(120), 
+                       # limits = range(sst), 
                        # breaks =seq(0.2,1.6,.3), 
                        na.value = "white")+
   labs(x = "", y = "")+
@@ -632,33 +891,839 @@ ggplot() +
         legend.key.height = unit(1.4, "cm"), 
         legend.background = element_blank(),
         axis.text = element_text(size = 12, colour = 1))+ 
-  scale_mag( name = expression(speed~(ms^{-1})))
+  scale_mag( name = expression(speed~(ms^{-1})))+
+  labs(x = NULL, y = NULL, title = "Month of : {frame_time}")+
+  transition_time(month) +
+  ease_aes("linear")
+
+```
+
+## ARGO float temperature and salinity
+```{r argo-file, eval=FALSE}
+# list the netcdf file names in the working directory
+
+argo.file = dir("e:/Doctoral/udsm/Processing/argo_profile/",  #relative path of the directory
+                recursive = TRUE, # recurse into directory
+                pattern = "_prof.nc", # choose the names match this condition
+                full.names = TRUE) # get name with its relative path
+
+## obtain id for files
+argo.id = argo.file %>% 
+  as.tibble() %>% 
+  rename(profile = 1) %>% 
+  separate(profile, c(NA, "id"), sep = "//") %>% 
+  separate(id, c(NA, "Id", NA), sep = "/") %>% 
+  pull(Id)
+```
+
+```{r argo, eval=FALSE}
+
+# preallocate a file to store processed ctd data
+argo.ctd = NULL
+
+# the first section of the loop run with i through the netcdf files
+    for (i in 1:length(argo.file)){
+        # read the files in sequence
+      argo = read.argo(argo.file[i])%>%handleFlags()%>%argoGrid(p = seq(0,1000,5))
+        # convert the argo list data into section
+      argo.section = argo%>%as.section()
+        # convert argo.section into list
+      argo.list = argo.section[["station"]]
+
+# the second section of the loop run with j through each argo list created by i
+    for (j in 1:length(argo.list)){
+      
+    profile = argo.list[[j]]@data%>% # get each station profile data
+      as.data.frame()%>%          # convert the data into daa frame
+            # add variable of argo id, note this use i and not j
+      mutate(id = argo.id[i], 
+              #add station variable
+             station = argo.list[[j]][["station"]],
+              #add date of sampling variable
+             time = argo.list[[j]][["startTime"]]%>%as.Date(),
+              #add longitude of station variable
+             lon = argo.list[[j]][["longitude"]], 
+              #add latitude of station variable
+             lat = argo.list[[j]][["latitude"]], 
+              #compute the salinity variable in each station
+             density = argo.list[[j]]%>%swRho(eos = "gsw"))%>%
+        # convert the data frame into tibble
+      as.tibble()%>%
+      # drop other variable of no interest
+      select(id, station, time, lon, lat,scan, pressure, 
+             salinity = salinityAdjusted, temperature = temperatureAdjusted)
+    #
+    # # separate the wmoid into into diferent variables
+    # profile = profile%>%separate(argo, c(1:7,"wmoid",8), sep = "/")%>%
+    #   # keep the wmoid variable and drop the rest
+    #   select(-c(1:4,6:10)) %>% rename(ID = 1)
+    #
+    #bind the argo.ctd with the data by rows
+    argo.ctd = argo.ctd%>%bind_rows(profile)
+  
+}
+}
+```
+
+### ctd profiles
+
+### ctd collected during 2018 cruise
+```{r ctd18, eval=FALSE} 
+file = dir("e:/Data Manipulation/ctd_bongo2018/", pattern = ".cnv",full.names = TRUE)
+
+ctd.se = list()
+
+for (i in 1:length(file)){
+  
+  ctd = read.ctd(file[i])%>%ctdTrim(method = "downcast")%>%ctdDecimate(p = 5)
+  
+  ctd.se[[i]] = ctd@data %>% 
+    as.tibble() %>% 
+    mutate(time = ctd@metadata$startTime %>% as.Date(), 
+           scan = i, station = i, id = ctd@metadata$station, 
+           lon = ctd@metadata$longitude, lat = ctd@metadata$latitude)
+  
+}
+
+ctd.se = ctd.se %>% bind_rows() %>% 
+    select(id, station, time, lon, lat, scan, pressure, salinity, temperature)
+```
+
+### ctd collected during the 2017 cruise
+```{r ctd17, eval=FALSE}
+file = dir("e:/Data Manipulation/ctd_bongo2017/Converted Data/Bongo/", pattern = ".cnv",full.names = TRUE)
+
+
+ctd.ne = list()
+
+for (i in 1:length(file)){
+  
+  ctd = read.ctd(file[i])%>%
+    ctdTrim(method = "downcast")%>%
+    ctdDecimate(p = 5)
+  
+  ctd.ne[[i]] = ctd@data %>% 
+    as.tibble() %>% 
+    mutate(time = ctd@metadata$startTime %>% as.Date(), 
+           scan = i, station = i, id = ctd@metadata$station, 
+           lon = ctd@metadata$longitude, lat = ctd@metadata$latitude)
+  
+}
+
+ctd.ne = ctd.ne %>% bind_rows() %>% 
+    select(id, station, time, lon, lat, scan, pressure, salinity, temperature)
+```
+
+
+```{r algoa, eval=FALSE}
+file = dir("e:/Data Manipulation/ctd_algoa/", pattern = "dstn",full.names = TRUE)
+
+
+ctd.algoa = list()
+
+for (i in 1:length(file)){
+  
+  ctd = read.ctd(file[i])%>%
+    ctdTrim(method = "downcast")%>%
+    ctdDecimate(p = 5)
+  
+  ctd.algoa[[i]] = ctd@data %>% 
+    as.tibble() %>% 
+    mutate(time = ctd@metadata$startTime %>% as.Date(), 
+           scan = i, station = i, id = ctd@metadata$station, 
+           lon = ctd@metadata$longitude, lat = ctd@metadata$latitude)
+  
+}
+
+ctd.algoa = ctd.algoa %>% bind_rows() %>% 
+    select(id, station, time, lon, lat, scan, pressure, salinity, temperature)
+```
+
+```{r}
+## because of the long time processing, i switched the chunk above not to process every time and instead load the products processed with them from previous session
+load("argo_ctd1.RData")
 ```
 
 
 ```{r}
+## combine argo with ctd data from two Agulhas cruise and algoa
 
-ggplot() +
-  metR::geom_contour_fill(data = wind.data.monthly%>%filter(month == "Jan"), 
-                          aes(x = lon, y = lat, z = speed), na.fill = TRUE, bins = 70) + 
-  metR::geom_vector(data = wind.data.monthly%>%filter(month == "Jan"), 
-                    aes(x = lon, y = lat, dx = wind.x/10, dy = wind.y/10), 
-                    arrow.angle = 30, arrow.type = "open", arrow.length = .75, 
-                    pivot = 0,preserve.dir = TRUE, direction = "ccw")+
+
+argo.ctd$station = as.integer(argo.ctd$station)
+all.ctd = argo.ctd %>% bind_rows(ctd.ne, ctd.se, ctd.algoa)
+
+## assign the seaoson
+argo.ctd.season = all.ctd %>% mutate(month = month(time),
+                    season = month, 
+                    season = replace(season,season %in% c(11,12,1,2,3, 4), "NE"),
+                    # season = replace(season,season %in% c(4,10), "IN"),
+                    season = replace(season,season %in% c(5,6,7,8,9,10 ), "SE")) %>% na.omit()
+
+```
+
+
+
+```{r argo-profile, fig.align="center", fig.cap=""}
+
+## subset for the Area of interest
+
+profile.map = argo.ctd.season %>% 
+  filter(id ==  1900409 & pressure == 10 & lat > -9 & lon < 41) %>% 
+  ggplot() + 
+  geom_path(aes(lon,lat, group = id, col = season), size = .8) +
+  geom_point(aes(lon,lat, col = season), size = 3) +
+  
   geom_sf(data = tz.ke,fill = "lightgrey", col = "black")+
-  coord_sf(ylim = c(-6.5,-4.5), xlim = c(38.5, 41))+
-  scale_fill_gradientn(name = "Current",
-                       colours = oceColorsVelocity(120), 
-                       # limits = c(0,1.6), 
-                       # breaks =seq(0.2,1.6,.3), 
-                       na.value = "white")+
-  labs(x = "", y = "")+
- theme_bw()+
-  theme(legend.position = "right",
-        legend.key.height = unit(1.4, "cm"), 
+  coord_sf(ylim = c(-8.5,-5.5), xlim = c(38.5, 40.5))+
+  ggrepel::geom_text_repel(aes(lon,lat,label = time%>%as.character()), size = 3.5)+
+  theme_bw()+
+  theme(legend.position = c(.2,.1),
+        legend.key.height = unit(0.5, "cm"),
         legend.background = element_blank(),
-        axis.text = element_text(size = 12, colour = 1))+ 
-  scale_mag( name = expression(speed~(ms^{-1})))
+        axis.text = element_text(size = 10, colour = 1),
+        legend.text = element_text(size = 10),
+        legend.key.width = unit(.85, "cm"),
+        legend.key = element_blank(),
+        legend.title = element_blank())+
+  scale_x_continuous(breaks = c(38.7,40.2))+
+  scale_y_continuous(breaks = c(-8.2, -5.7))+
+  labs(x = NULL, y = NULL)
+
+
+profile.temperature = argo.ctd.season %>% 
+  filter(id ==  1900409 & pressure < 500 & lat > -9 & lon < 41) %>% 
+  ggplot() + 
+  geom_contour_fill(aes(x = lat, y = pressure, z = temperature), na.fill = TRUE, bins = 120)+
+  geom_contour2(aes(x = lat, y = pressure, z = temperature), na.fill = TRUE)+
+  geom_text_contour(aes(x = lat, y = pressure, z = temperature), 
+                    na.fill = TRUE, check_overlap = TRUE, parse = TRUE, 
+                    size =3.5, rotate = FALSE)+
+  scale_y_reverse()+
+ scale_x_continuous(breaks = seq(-8.2,-5.8, length.out = 4), 
+                     labels = LatLabel(seq(-8.2,-5.8, length.out = 4)))+
+  scale_fill_gradientn(colours = oce.colorsTemperature(120))+
+  theme(legend.position = "none", axis.text = element_text(size = 10, colour = 1),
+        panel.background = element_rect(colour = NA, fill = NA),
+        axis.title = element_blank(), axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())+
+  labs(x = NULL, y = NULL)+
+  annotate(geom = "text", x = -7.8, y = 30, label = "Temperature")
+
+profile.salinity = argo.ctd.season %>% 
+  filter(id ==  1900409 & pressure < 500 & lat > -9 & lon < 41) %>% 
+  ggplot() + 
+  geom_contour_fill(aes(x = lat, y = pressure, z = salinity), na.fill = TRUE, bins = 120)+
+  geom_contour2(aes(x = lat, y = pressure, z = salinity), na.fill = TRUE)+
+  geom_text_contour(aes(x = lat, y = pressure, z = salinity), na.fill = TRUE, 
+                    check_overlap = TRUE, parse = TRUE, size =3.5, rotate = FALSE)+
+  scale_y_reverse(breaks = seq(50,450,100))+
+  scale_x_continuous(breaks = seq(-8.2,-5.8, length.out = 4), 
+                     labels = LatLabel(seq(-8.2,-5.8, length.out = 4)))+
+  scale_fill_gradientn(colours = oce.colorsSalinity(120))+
+  theme(legend.position = "none", axis.text = element_text(size = 10, colour = 1),
+        panel.background = element_rect(colour = NA, fill = NA),
+        axis.title.y = element_text(colour = 1, size = 12), plot.tag = element_text())+
+  labs(x = NULL, y = "Water depth [meter]")+
+  annotate(geom = "text", x = -8.1, y = 30, label = "Salinity")
+
+egg::ggarrange(profile.map,profile.salinity, profile.temperature, nrow = 1)
+
+```
+
+
+### creating polygons as AOI in sf from a series of lat and lon coordinates.
+
+`st_as_sf()` has an argument `coords` that  take points given as coordinate columns in a data frame and convert those columns to `sf POINT geometries`. Then, because **sf** works well with **dplyr**, we can use `st_combine()` to combine the points into a *MULTIPOINT* and use `st_cast()` to convert to *POLYGON*. 
+```{r}
+
+argo.ctd.season = argo.ctd.season %>% 
+  filter(lon >= 37 & lon < 42 & lat > -7 & lat < -4)
+
+argo.ctd.sf = argo.ctd.season %>% 
+  st_as_sf(coords = c("lon", "lat")) %>% 
+  st_set_crs(4326)
+
+
+
+# extent.df = data.frame(lon =c(38.47412,38.47412, 50.44922, 50.44922,38.47412), 
+#                        lat = c(-13.20576,0.350621, 0.350621, -13.20576,-13.20576))
+# 
+# extent= extent.df %>% 
+#   st_as_sf(coords = c("lon", "lat")) %>%
+#   st_set_crs(4326) %>% 
+#   summarise(geometry = st_combine(geometry)) %>%
+#   st_cast("POLYGON")
+
+```
+
+```{r}
+
+grid = argo.ctd.sf %>% st_make_grid(n = 20) %>% st_sf()
+
+ggplot() + 
+  geom_sf(data = grid)+
+  geom_sf(data = tz.ke, fill = "grey95", col = 1)+
+  coord_sf(xlim = argo.ctd.season$lon %>% range, ylim = argo.ctd.season$lat %>% range)
 
 
 ```
+
+
+### northeast season
+```{r}
+
+
+argo.ctd.sf.ne = argo.ctd.sf %>% filter(pressure == 10 & season == "NE") 
+
+argo.grid.ne= grid %>%
+  mutate(id = 1:n(),
+         contained = lapply(st_contains(st_sf(geometry), argo.ctd.sf.ne), identity),
+         obs = sapply(contained, length), 
+         temperature = sapply(contained, function(x) {mean(argo.ctd.sf.ne[x,]$temperature, na.rm = TRUE)}),
+         salinity = sapply(contained, function(x) {mean(argo.ctd.sf.ne[x,]$salinity, na.rm = TRUE)}))
+
+argo.grid.ne = argo.grid.ne %>% mutate(pressure = 10)%>%select(pressure,obs, temperature,salinity)
+
+depth = c(100,200,500,1000)
+
+for (i in depth){
+  
+  argo.ctd.sf.ne = argo.ctd.sf %>% filter(pressure == i & season == "NE") 
+
+argo.sf.ne = grid %>%
+  mutate(id = 1:n(),
+         contained = lapply(st_contains(st_sf(geometry), argo.ctd.sf.ne), identity),
+         obs = sapply(contained, length), 
+         temperature = sapply(contained, function(x) {mean(argo.ctd.sf.ne[x,]$temperature, na.rm = TRUE)}),
+         salinity = sapply(contained, function(x) {mean(argo.ctd.sf.ne[x,]$salinity, na.rm = TRUE)}))
+
+argo.sf.ne = argo.sf.ne %>% mutate(pressure = i)%>%select(pressure,obs, temperature,salinity)
+  
+argo.grid.ne = argo.grid.ne %>% rbind(argo.sf.ne)
+}
+
+```
+
+
+```{r}
+argo.ne.df = argo.grid.ne
+coordinates = argo.grid.ne %>% st_centroid() %>% st_coordinates() %>% as.tibble() %>% rename(lon=1,lat=2)
+st_geometry(argo.ne.df) = NULL
+
+argo.ne.df = coordinates %>% bind_cols(argo.ne.df) %>% na.omit()
+```
+
+## temprature
+```{r}
+depth = c(10, 100, 200, 500, 1000)
+
+
+ne.df.temperature = NULL
+
+for (n in depth) {
+  
+ten = argo.ne.df %>% filter(pressure == n)
+
+xg = pretty(x = ten$lon, n = 40)
+yg = pretty(x = ten$lat, n = 40)
+
+ argo.ne.interp = interpBarnes(ten$lon, ten$lat, ten$temperature, xg = xg, yg = yg)
+ 
+ dim.lon = length(argo.ne.interp$xg)
+dim.lat = length(argo.ne.interp$yg)
+
+ argo.ne.interp.df = data.frame(argo.ne.interp$xg,  argo.ne.interp$zg%>%as.data.frame())%>%
+   as.tibble()%>%
+   gather(key = "aa", value = "temperature", 2:(dim.lat+1))%>%
+   mutate(lat = rep(argo.ne.interp$yg, each = dim.lon), pressure = n)%>%
+   select(pressure, lon = 1, lat, temperature)%>%na.omit()
+ 
+ne.df.temperature = ne.df.temperature %>% bind_rows(argo.ne.interp.df) 
+}
+
+
+```
+
+
+
+## salinity
+```{r}
+depth = c(10, 100, 200, 500, 1000)
+
+
+ne.df.salinity = NULL
+
+for (n in depth) {
+  
+ten = argo.ne.df %>% filter(pressure == n)
+
+xg = pretty(x = ten$lon, n = 40)
+yg = pretty(x = ten$lat, n = 40)
+
+ argo.ne.interp = interpBarnes(ten$lon, ten$lat, ten$salinity, xg = xg, yg = yg)
+ 
+ dim.lon = length(argo.ne.interp$xg)
+dim.lat = length(argo.ne.interp$yg)
+
+ argo.ne.interp.df = data.frame(argo.ne.interp$xg,  argo.ne.interp$zg%>%as.data.frame())%>%
+   as.tibble()%>%
+   gather(key = "aa", value = "salinity", 2:(dim.lat+1))%>%
+   mutate(lat = rep(argo.ne.interp$yg, each = dim.lon), pressure = n)%>%
+   select(pressure, lon = 1, lat, salinity)%>%na.omit()
+ 
+ne.df.salinity = ne.df.salinity %>% bind_rows(argo.ne.interp.df) 
+}
+
+ne.df.all = ne.df.salinity %>% bind_cols(ne.df.temperature %>% select(temperature))
+```
+
+
+```{r}
+d0.temperature = ggplot()+
+  geom_contour_fill(data = ne.df.all %>% filter(pressure == 10),
+                    aes(x = lon, y = lat, z = temperature), na.fill = TRUE, bins = 70)+
+  geom_contour2(data = ne.df.all %>% filter(pressure ==10), 
+                aes(x = lon, y = lat , z = temperature), na.fill = TRUE)+
+  geom_text_contour(data = ne.df.all %>% filter(pressure ==10), 
+                aes(x = lon, y = lat , z = temperature), na.fill = TRUE, 
+                    check_overlap = TRUE, parse = TRUE, size =3.5, rotate = FALSE)+
+  geom_sf(data = tz.ke,fill = "lightgrey", col = "black")+
+ coord_sf(ylim = c(-6.5,-4.5), xlim = c(38.5, 41))+
+  labs(x = "", y = "")+
+  theme_bw()+
+  theme(legend.position = "none",
+        legend.key.width = unit(1.2, "cm"), 
+        legend.key.height = unit(0.2, "cm"), 
+        legend.background = element_blank(),
+        axis.text = element_text(size = 12, colour = 1))+ 
+  scale_fill_gradientn(colours = oceColorsJet(120), name = expression(~degree~C))+
+  scale_x_continuous(breaks = c(38.8,40.5))+
+  scale_y_continuous(breaks = c(-6.3, -4.8))
+
+d200.temperature = ggplot()+
+  geom_contour_fill(data = ne.df.all %>% filter(pressure == 200),
+                    aes(x = lon, y = lat, z = temperature), na.fill = TRUE, bins = 70)+
+  geom_contour2(data = ne.df.all %>% filter(pressure ==200), 
+                aes(x = lon, y = lat , z = temperature), na.fill = TRUE)+
+  geom_text_contour(data = ne.df.all %>% filter(pressure ==200), 
+                aes(x = lon, y = lat , z = temperature), na.fill = TRUE, 
+                    check_overlap = TRUE, parse = TRUE, size =3.5, rotate = FALSE)+
+  geom_sf(data = tz.ke,fill = "lightgrey", col = "black")+
+  coord_sf(ylim = c(-6.5,-4.5), xlim = c(38.5, 41))+
+  labs(x = "", y = "")+
+  theme_bw()+
+  theme(legend.position = "none",
+        legend.key.width = unit(1.2, "cm"), 
+        legend.key.height = unit(0.2, "cm"),
+        legend.background = element_blank(),
+        axis.text = element_text(size = 12, colour = 1))+ 
+  scale_fill_gradientn(colours = oceColorsJet(120), name = expression(~degree~C))+
+  scale_x_continuous(breaks = c(38.8,40.5))+
+  scale_y_continuous(breaks = c(-6.3, -4.8))
+
+egg::ggarrange(d0.temperature, d200.temperature, ncol = 2)
+
+```
+
+
+```{r}
+d0.salinity = ggplot()+
+  geom_contour_fill(data = ne.df.all %>% filter(pressure == 10),
+                    aes(x = lon, y = lat, z = salinity), na.fill = TRUE, bins = 70)+
+  geom_contour2(data = ne.df.all %>% filter(pressure ==10), 
+                aes(x = lon, y = lat , z = salinity), na.fill = TRUE)+
+  geom_text_contour(data = ne.df.all %>% filter(pressure ==10), 
+                aes(x = lon, y = lat , z = salinity), na.fill = TRUE, 
+                    check_overlap = TRUE, parse = TRUE, size =3.5, rotate = FALSE)+
+  geom_sf(data = tz.ke,fill = "lightgrey", col = "black")+
+  coord_sf(ylim = c(-6.5,-4.5), xlim = c(38.5, 41))+
+  labs(x = "", y = "")+
+  theme_bw()+
+  theme(legend.position = "none",
+        legend.key.width = unit(1.2, "cm"), 
+        legend.key.height = unit(0.2, "cm"), 
+        legend.background = element_blank(),
+        axis.text = element_text(size = 12, colour = 1))+ 
+  scale_fill_gradientn(colours = oceColorsJet(120), name = expression(~degree~C))+
+  scale_x_continuous(breaks = c(38.8,40.5))+
+  scale_y_continuous(breaks = c(-6.3, -4.8))
+
+d200.salinity = ggplot()+
+  geom_contour_fill(data = ne.df.all %>% filter(pressure == 200),
+                    aes(x = lon, y = lat, z = salinity), na.fill = TRUE, bins = 70)+
+  geom_contour2(data = ne.df.all %>% filter(pressure ==200), 
+                aes(x = lon, y = lat , z = salinity), na.fill = TRUE)+
+  geom_text_contour(data = ne.df.all %>% filter(pressure ==200), 
+                aes(x = lon, y = lat , z = salinity), na.fill = TRUE, 
+                    check_overlap = TRUE, parse = TRUE, size =3.5, rotate = FALSE)+
+  geom_sf(data = tz.ke,fill = "lightgrey", col = "black")+ 
+  coord_sf(ylim = c(-6.5,-4.5), xlim = c(38.5, 41))+
+  labs(x = "", y = "")+
+  theme_bw()+
+  theme(legend.position = "none",
+        legend.key.width = unit(1.2, "cm"), 
+        legend.key.height = unit(0.2, "cm"),
+        legend.background = element_blank(),
+        axis.text = element_text(size = 12, colour = 1),
+        axis.text.y = element_blank())+ 
+  scale_fill_gradientn(colours = oceColorsJet(120), name = expression(~degree~C))+
+  scale_x_continuous(breaks = c(38.8,40.5))+
+  scale_y_continuous(breaks = c(-6.3, -4.8))
+
+egg::ggarrange(d0.salinity, d200.salinity, ncol = 2)
+
+```
+
+
+### southeast monsoon
+
+```{r}
+
+
+argo.ctd.sf.se = argo.ctd.sf %>% filter(pressure == 10 & season == "SE") 
+
+argo.grid.se= grid %>%
+  mutate(id = 1:n(),
+         contained = lapply(st_contains(st_sf(geometry), argo.ctd.sf.se), identity),
+         obs = sapply(contained, length), 
+         temperature = sapply(contained, function(x) {mean(argo.ctd.sf.se[x,]$temperature, na.rm = TRUE)}),
+         salinity = sapply(contained, function(x) {mean(argo.ctd.sf.se[x,]$salinity, na.rm = TRUE)}))
+
+argo.grid.se = argo.grid.se %>% mutate(pressure = 10)%>%select(pressure,obs, temperature,salinity)
+
+depth = c(100,200,500,1000)
+
+for (i in depth){
+  
+  argo.ctd.sf.se = argo.ctd.sf %>% filter(pressure == i & season == "SE") 
+
+argo.sf.se = grid %>%
+  mutate(id = 1:n(),
+         contained = lapply(st_contains(st_sf(geometry), argo.ctd.sf.se), identity),
+         obs = sapply(contained, length), 
+         temperature = sapply(contained, function(x) {mean(argo.ctd.sf.se[x,]$temperature, na.rm = TRUE)}),
+         salinity = sapply(contained, function(x) {mean(argo.ctd.sf.se[x,]$salinity, na.rm = TRUE)}))
+
+argo.sf.se = argo.sf.se %>% mutate(pressure = i)%>%select(pressure,obs, temperature,salinity)
+  
+argo.grid.se = argo.grid.se %>% rbind(argo.sf.se)
+}
+
+```
+
+
+```{r}
+argo.se.df = argo.grid.se
+coordinates = argo.grid.se %>% st_centroid() %>% st_coordinates() %>% as.tibble() %>% rename(lon=1,lat=2)
+st_geometry(argo.se.df) = NULL
+
+argo.se.df = coordinates %>% bind_cols(argo.se.df) %>% na.omit()
+```
+
+## temprature
+```{r}
+depth = c(10, 100, 200, 500, 1000)
+
+
+se.df.temperature = NULL
+
+for (n in depth) {
+  
+ten = argo.se.df %>% filter(pressure == n)
+
+xg = pretty(x = ten$lon, n = 40)
+yg = pretty(x = ten$lat, n = 40)
+
+ argo.se.interp = interpBarnes(ten$lon, ten$lat, ten$temperature, xg = xg, yg = yg)
+ 
+ dim.lon = length(argo.se.interp$xg)
+dim.lat = length(argo.se.interp$yg)
+
+ argo.se.interp.df = data.frame(argo.se.interp$xg,  argo.se.interp$zg%>%as.data.frame())%>%
+   as.tibble()%>%
+   gather(key = "aa", value = "temperature", 2:(dim.lat+1))%>%
+   mutate(lat = rep(argo.se.interp$yg, each = dim.lon), pressure = n)%>%
+   select(pressure, lon = 1, lat, temperature)%>%na.omit()
+ 
+se.df.temperature = se.df.temperature %>% bind_rows(argo.se.interp.df) 
+}
+
+
+```
+
+
+
+## salinity
+```{r}
+depth = c(10, 100, 200, 500, 1000)
+
+
+se.df.salinity = NULL
+
+for (n in depth) {
+  
+ten = argo.se.df %>% filter(pressure == n)
+
+xg = pretty(x = ten$lon, n = 40)
+yg = pretty(x = ten$lat, n = 40)
+
+ argo.se.interp = interpBarnes(ten$lon, ten$lat, ten$salinity, xg = xg, yg = yg)
+ 
+ dim.lon = length(argo.se.interp$xg)
+dim.lat = length(argo.se.interp$yg)
+
+ argo.se.interp.df = data.frame(argo.se.interp$xg,  argo.se.interp$zg%>%as.data.frame())%>%
+   as.tibble()%>%
+   gather(key = "aa", value = "salinity", 2:(dim.lat+1))%>%
+   mutate(lat = rep(argo.se.interp$yg, each = dim.lon), pressure = n)%>%
+   select(pressure, lon = 1, lat, salinity)%>%na.omit()
+ 
+se.df.salinity = se.df.salinity %>% bind_rows(argo.se.interp.df) 
+}
+
+se.df.all = se.df.salinity %>% bind_cols(se.df.temperature %>% select(temperature))
+```
+
+
+```{r}
+d0.temperature = ggplot()+
+  geom_contour_fill(data = se.df.all %>% filter(pressure == 10),
+                    aes(x = lon, y = lat, z = temperature), na.fill = TRUE, bins = 70)+
+  geom_contour2(data = se.df.all %>% filter(pressure ==10), 
+                aes(x = lon, y = lat , z = temperature), na.fill = TRUE)+
+  geom_text_contour(data = se.df.all %>% filter(pressure ==10), 
+                aes(x = lon, y = lat , z = temperature), na.fill = TRUE, 
+                    check_overlap = TRUE, parse = TRUE, size =3.5, rotate = FALSE)+
+  # metR::geom_vector(data = uv.se %>% sample_frac(.25), aes(x = lon, y = lat, dx = u, dy = v), 
+  #                   arrow.angle = 40, arrow.type = "open", arrow.length = .75, 
+  #                   pivot = 0,preserve.dir = TRUE, direction = "ccw")+
+  geom_sf(data = tz.ke,fill = "lightgrey", col = "black")+
+  coord_sf(ylim = c(-6.5,-4.5), xlim = c(38.5, 41))+
+  labs(x = "", y = "")+
+  theme_bw()+
+  theme(legend.position = "none",
+        legend.key.width = unit(1.2, "cm"), 
+        legend.key.height = unit(0.2, "cm"), 
+        legend.background = element_blank(),
+        axis.text = element_text(size = 12, colour = 1))+ 
+  # scale_mag(max = 1.8, name = expression(speed~(ms^{-1})))+
+  scale_fill_gradientn(colours = oceColorsJet(120), name = expression(~degree~C))+
+  scale_x_continuous(breaks = c(38.8,40.5))+
+  scale_y_continuous(breaks = c(-6.3, -4.8))
+
+d200.temperature = ggplot()+
+  geom_contour_fill(data = se.df.all %>% filter(pressure == 200),
+                    aes(x = lon, y = lat, z = temperature), na.fill = TRUE, bins = 70)+
+  geom_contour2(data = se.df.all %>% filter(pressure ==200), 
+                aes(x = lon, y = lat , z = temperature), na.fill = TRUE)+
+  geom_text_contour(data = se.df.all %>% filter(pressure ==200), 
+                aes(x = lon, y = lat , z = temperature), na.fill = TRUE, 
+                    check_overlap = TRUE, parse = TRUE, size =3.5, rotate = FALSE)+
+  # metR::geom_vector(data = uv.se %>% sample_frac(.5), aes(x = lon, y = lat, dx = u, dy = v), 
+  #                   arrow.angle = 40, arrow.type = "open", arrow.length = .75, 
+  #                   pivot = 0,preserve.dir = TRUE, direction = "ccw")+
+  geom_sf(data = tz.ke,fill = "lightgrey", col = "black")+
+  coord_sf(ylim = c(-6.5,-4.5), xlim = c(38.5, 41))+
+  labs(x = "", y = "")+
+  theme_bw()+
+  theme(legend.position = "none",
+        legend.key.width = unit(1.2, "cm"), 
+        legend.key.height = unit(0.2, "cm"),
+        legend.background = element_blank(),
+        axis.text = element_text(size = 12, colour = 1))+ 
+  # scale_mag(max = 1.8, name = expression(speed~(ms^{-1})))+
+  scale_fill_gradientn(colours = oceColorsJet(120), name = expression(~degree~C))+
+  scale_x_continuous(breaks = c(38.8,40.5))+
+  scale_y_continuous(breaks = c(-6.3, -4.8))
+
+egg::ggarrange(d0.temperature, d200.temperature, ncol = 2)
+
+```
+
+
+
+
+```{r}
+d0.salinity = ggplot()+
+  geom_contour_fill(data = se.df.all %>% filter(pressure == 10),
+                    aes(x = lon, y = lat, z = salinity), na.fill = TRUE, bins = 70)+
+  geom_contour2(data = se.df.all %>% filter(pressure ==10), 
+                aes(x = lon, y = lat , z = salinity), na.fill = TRUE)+
+  geom_text_contour(data = se.df.all %>% filter(pressure ==10), 
+                aes(x = lon, y = lat , z = salinity), na.fill = TRUE, 
+                    check_overlap = TRUE, parse = TRUE, size =3.5, rotate = FALSE)+
+     geom_sf(data = tz.ke,fill = "lightgrey", col = "black")+
+  coord_sf(ylim = c(-6.5,-4.5), xlim = c(38.5, 41))+
+  labs(x = "", y = "")+
+  theme_bw()+
+  theme(legend.position = "none",
+        legend.key.width = unit(1.2, "cm"), 
+        legend.key.height = unit(0.2, "cm"), 
+        legend.background = element_blank(),
+        axis.text = element_text(size = 11, colour = 1))+ 
+  scale_fill_gradientn(colours = oceColorsJet(120), name = expression(~Salinity~C))+
+  scale_x_continuous(breaks = c(38.8,40.5))+
+  scale_y_continuous(breaks = c(-5.9, -4.4))
+
+d200.salinity = ggplot()+
+  geom_contour_fill(data = se.df.all %>% filter(pressure == 200),
+                    aes(x = lon, y = lat, z = salinity), na.fill = TRUE, bins = 70)+
+  geom_contour2(data = se.df.all %>% filter(pressure ==200), 
+                aes(x = lon, y = lat , z = salinity), na.fill = TRUE)+
+  geom_text_contour(data = se.df.all %>% filter(pressure ==200), 
+                aes(x = lon, y = lat , z = salinity), na.fill = TRUE, 
+                    check_overlap = TRUE, parse = TRUE, size =3.5, rotate = FALSE)+
+   geom_sf(data = tz.ke,fill = "lightgrey", col = "black")+
+  coord_sf(ylim = c(-6.5,-4.5), xlim = c(38.5, 41))+
+  labs(x = "", y = "")+
+  theme_bw()+
+  theme(legend.position = "none",
+        legend.key.width = unit(1.2, "cm"), 
+        legend.key.height = unit(0.2, "cm"),
+        legend.background = element_blank(), axis.text.y = element_blank(),
+        axis.text = element_text(size = 11, colour = 1))+ 
+  scale_fill_gradientn(colours = oceColorsJet(120), name = expression(~Salinity~C))+
+  scale_x_continuous(breaks = c(38.8,40.5))+
+  scale_y_continuous(breaks = c(-5.9, -4.4))
+
+d500.salinity = ggplot()+
+  geom_contour_fill(data = se.df.all %>% filter(pressure == 500),
+                    aes(x = lon, y = lat, z = salinity), na.fill = TRUE, bins = 70)+
+  geom_contour2(data = se.df.all %>% filter(pressure ==500), 
+                aes(x = lon, y = lat , z = salinity), na.fill = TRUE)+
+  geom_text_contour(data = se.df.all %>% filter(pressure ==500), 
+                aes(x = lon, y = lat , z = salinity), na.fill = TRUE, 
+                    check_overlap = TRUE, parse = TRUE, size =3.5, rotate = FALSE)+
+   geom_sf(data = tz.ke,fill = "lightgrey", col = "black")+
+  coord_sf(ylim = c(-6.5,-4.5), xlim = c(38.5, 41))+
+  labs(x = "", y = "")+
+  theme_bw()+
+  theme(legend.position = "none",
+        legend.key.width = unit(1.2, "cm"), 
+        legend.key.height = unit(0.2, "cm"),
+        legend.background = element_blank(), axis.text.y = element_blank(),
+        axis.text = element_text(size = 11, colour = 1))+ 
+  scale_fill_gradientn(colours = oceColorsJet(120), name = expression(~Salinity~C))+
+  scale_x_continuous(breaks = c(38.8,40.5))+
+  scale_y_continuous(breaks = c(-5.9, -4.4))
+
+egg::ggarrange(d0.salinity, d200.salinity, ncol = 2)
+
+```
+
+## AVISO-SLA
+```{r eval=FALSE}
+variables = metR::ReadNetCDF("e:/MatlabWorking/Altimetry/msla_h/indian_ocean-twosat-msla-h_010193_311295.nc", out = "data.frame")
+
+ variables$dimensions %>% names()
+ 
+sla = metR::ReadNetCDF("e:/MatlabWorking/Altimetry/msla_h/indian_ocean-twosat-msla-h_010193_311295.nc", subset = list(lon= -35:43, level = as.Date("1995-06-10")))
+```
+
+```{r, eval=FALSE}
+nc = ncdf4::nc_open("e:/MatlabWorking/Altimetry/msla_h/indian_ocean-twosat-msla-h_010193_311295.nc")
+time = ncdf4::ncvar_get(nc, "time")
+lon = ncdf4::ncvar_get(nc, "lon")
+lat = ncdf4::ncvar_get(nc, "lat")
+sla  = ncdf4::ncvar_get(nc, "sla")
+
+sla %>% dim; lon %>% length(); lat %>% length()
+```
+
+
+```{r, eval=FALSE}
+to = ymd("1950-01-01", tz = "")
+to.jd = insol::JD(to)
+t = time+to.jd
+t = insol::JD(t, inverse = TRUE) 
+```
+
+
+```{r , eval=FALSE}
+sla.list = list()
+
+week.day = seq(1,length(t),8)
+
+dimension = data.frame(lon, sla[,,1]) %>% dim()
+
+# for (j in 1:length(t)){
+for (j in week.day){
+sla.list[[j]] = data.frame(lon, sla[,,j]) %>% 
+  gather(key = "lata", value = "sla", 2:dimension[2]) %>% 
+  mutate(lat = rep(lat, each = dimension[1]), time = t[j]) %>% 
+  separate(time, c("time", NA), sep = " ") %>% 
+  filter(lon > 37 & lon < 45 & lat > -14 & lat < -1)
+}
+
+sla.tb = sla.list %>% bind_rows() 
+```
+
+```{r}
+load("sla.RData")
+```
+
+```{r}
+sla.tb.season = sla.tb %>%
+  mutate(month = month(time),
+         season = month, 
+         season = replace(season,season %in% c(11,12,1,2,3, 4), "NE"),
+         # season = replace(season,season %in% c(4,10), "IN"),
+         season = replace(season,season %in% c(5,6,7,8,9,10 ), "SE"),
+         sla = sla*10) 
+```
+
+```{r}
+msla = sla.tb.season %>% group_by(lon,lat, month) %>% summarise(msla = mean(sla, na.rm = TRUE))
+```
+
+
+```{r msla, fig.align="center", fig.keep="high", fig.cap="Mean Sea Level anomaly during a) NE and b) SE monsoon season"}
+
+msla.pemba = msla %>% filter(lon >38.2 & lon < 41.2 & lat > -6.7 & lat < -4)
+
+sla.ne = ggplot()+
+  metR::geom_contour_fill(data = msla.pemba %>% filter(month==1),
+       aes(x = lon, y = lat, z = msla), na.fill = TRUE, bins = 120)+
+  metR::geom_contour2(data = msla.pemba %>% filter(month==1),
+       aes(x = lon, y = lat, z = msla), na.fill = TRUE)+
+  metR::geom_text_contour(data = msla.pemba %>% filter(month==1),
+       aes(x = lon, y = lat, z = msla), na.fill = TRUE, 
+                    check_overlap = FALSE, parse = TRUE, size =3.5, rotate = FALSE)+
+   geom_sf(data = tz.ke,fill = "lightgrey", col = "black")+
+  coord_sf(ylim = c(-6.5,-4.5), xlim = c(38.5, 41))+
+  labs(x = "", y = "")+
+  theme_bw()+
+  theme(legend.position = "none",
+        legend.key.width = unit(.4, "cm"), 
+        legend.key.height = unit(1.2, "cm"),
+        legend.background = element_blank(), 
+        axis.text = element_text(size = 11, colour = 1))+ 
+  scale_fill_gradientn(colours = oceColorsJet(120), name = expression(~SLA~(mm)))+
+  scale_x_continuous(breaks = c(38.8,40.5))+
+  scale_y_continuous(breaks = c(-6.3, -4.8))
+
+sla.se = ggplot()+
+  metR::geom_contour_fill(data = msla.pemba %>% filter(month==8),
+       aes(x = lon, y = lat, z = msla), na.fill = TRUE, bins = 120)+
+  metR::geom_contour2(data = msla.pemba %>% filter(month==8),
+       aes(x = lon, y = lat, z = msla), na.fill = TRUE)+
+  metR::geom_text_contour(data = msla.pemba %>% filter(month==8),
+       aes(x = lon, y = lat, z = msla), na.fill = TRUE, 
+                    check_overlap = FALSE, parse = TRUE, size =3.5, rotate = FALSE)+
+   geom_sf(data = tz.ke,fill = "lightgrey", col = "black")+
+  coord_sf(ylim = c(-6.5,-4.5), xlim = c(38.5, 41))+
+  labs(x = "", y = "")+
+  theme_bw()+
+  theme(legend.position = "none",
+        legend.key.width = unit(.4, "cm"), 
+        legend.key.height = unit(1.2, "cm"),
+        legend.background = element_blank(), axis.text.y = element_blank(),
+        axis.text = element_text(size = 11, colour = 1))+ 
+  scale_fill_gradientn(colours = oceColorsJet(120), name = expression(~SLA~(mm)))+
+  # scale_fill_divergent(midpoint = 0)+
+  scale_x_continuous(breaks = c(38.8,40.5))+
+  scale_y_continuous(breaks = c(-6.3, -4.8))
+
+egg::ggarrange(sla.ne, sla.se, ncol = 2)
+```
+
